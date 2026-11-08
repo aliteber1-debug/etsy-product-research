@@ -1,10 +1,151 @@
 <!DOCTYPE html>
 <html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Callback</title>
-</head>
-<body>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Etsy Callback</title>
+    <style>
+      :root {
+        --bg: #f7f5f3;
+        --card: #ffffff;
+        --text: #1f1f1f;
+        --muted: #6b7280;
+        --success: #0f766e;
+        --error: #b91c1c;
+        --border: #e5e7eb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        font-family: Arial, Helvetica, sans-serif;
+        color: var(--text);
+      }
+
+      .card {
+        width: min(560px, 92vw);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px 24px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+      }
+
+      .status {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 6px 10px;
+        border-radius: 999px;
+        margin-bottom: 14px;
+      }
+
+      .status.success {
+        color: var(--success);
+        background: rgba(15, 118, 110, 0.08);
+      }
+
+      .status.error {
+        color: var(--error);
+        background: rgba(185, 28, 28, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .meta {
+        margin-top: 18px;
+        padding: 14px 16px;
+        background: #f9fafb;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 13px;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+
+      .meta strong {
+        display: inline-block;
+        min-width: 90px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div id="status" class="status">Yükleniyor...</div>
+      <h1 id="title">İşlem sürüyor...</h1>
+      <p id="message">Yetkilendirme dönüşü işleniyor.</p>
+      <div id="meta" class="meta" style="display: none;"></div>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+      const errorDescription = params.get('error_description') || params.get('error_description');
+
+      const statusEl = document.getElementById('status');
+      const titleEl = document.getElementById('title');
+      const messageEl = document.getElementById('message');
+      const metaEl = document.getElementById('meta');
+
+      function showMeta(label, value) {
+        if (!value) return;
+        metaEl.style.display = 'block';
+        metaEl.innerHTML += `<div><strong>${label}:</strong> ${value}</div>`;
+      }
+
+      function sendToParent(payload) {
+        if (window.opener) {
+          window.opener.postMessage(payload, '*');
+        }
+      }
+
+      if (error) {
+        statusEl.textContent = 'Hata';
+        statusEl.className = 'status error';
+        titleEl.textContent = 'Yetkilendirme reddedildi';
+        messageEl.textContent = errorDescription || 'Yetkilendirme sırasında bir hata oluştu.';
+        showMeta('Hata', error);
+        showMeta('Açıklama', errorDescription);
+        sendToParent({ type: 'etsy-auth-error', error, errorDescription, state });
+      } else if (code) {
+        statusEl.textContent = 'Başarılı';
+        statusEl.className = 'status success';
+        titleEl.textContent = 'Yetkilendirme tamamlandı';
+        messageEl.textContent = 'Etsy erişim kodu başarıyla alındı. Pencere kapanıyor...';
+        showMeta('Kod', code);
+        showMeta('State', state);
+        sendToParent({ type: 'etsy-auth-success', code, state });
+
+        setTimeout(() => {
+          window.close();
+        }, 1500);
+      } else {
+        statusEl.textContent = 'Uyarı';
+        statusEl.className = 'status error';
+        titleEl.textContent = 'Kod bulunamadı';
+        messageEl.textContent = 'Callback URL içinde yetkilendirme kodu bulunamadı.';
+        sendToParent({ type: 'etsy-auth-missing-code' });
+      }
+    </script>
+  </body>
 </html>
